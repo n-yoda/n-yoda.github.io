@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <meta charset="UTF-8">
+        <title>Pose</title>
+        <style type="text/css">
+            body { background: #ddd; }
+            #main { background: #fff; }
+            #sample { border: solid; }
+            .hidden { display: none; }
+        </style>
+    </head>
+    <body>
+        <!-- USER TEST
+        <div>
+            <input type="button" value="RESET" id="reset">
+            <input type="button" value="TEST1" id="test1" class="test">
+            <input type="button" value="TEST2" id="test2" class="test">
+            <input type="button" value="TEST3" id="test3" class="test">
+            <input type="button" value="DONE" id="done">
+            <input type="text" value="0" id="time" readonly="">
+        </div>
+        -->
+
+        <div>
+            <!-- USER TEST
+                <img id="sample" src="http://www-ui.is.s.u-tokyo.ac.jp/~takeo/course/2014/ui/practice.png" width="100">
+            -->
+            <canvas id="main" width="400" height="400"></canvas>
+            <canvas id="camera" width="800" height="600"></canvas>
+            <video id="video" width="800" height="600" class="hidden"></video>
+        </div>
+        
+        <!-- USER TEST
+        <h3>ユーザーテストデータ送信用（気にしない）</h3>
+        <form id="result" name="result" method="get" target=".">
+            <div>
+                body
+                <input id="body" name="body" class="slider" type="range" min="-180" max="180">
+                head
+                <input id="head" name="head" class="slider" type="range" min="-180" max="180">
+            </div>
+            
+            <div>
+                left arm
+                <input id="leftArm" name="leftArm" class="slider" type="range" min="-180" max="180">
+                hand
+                <input id="leftArm-leftHand" name="leftArm-leftHand" class="slider" type="range" min="-180" max="180">
+            </div>
+            
+            <div>
+                right arm
+                <input id="rightArm" name="rightArm" class="slider" type="range" min="-180" max="180">
+                right
+                <input id="rightArm-rightHand" name="rightArm-rightHand" class="slider" type="range" min="-180" max="180">
+            </div>
+            
+            <div>
+                left leg
+                <input id="leftLeg" name="leftLeg" class="slider" type="range" min="-180" max="180">
+                foot
+                <input id="leftLeg-leftFoot" name="leftLeg-leftFoot" class="slider" type="range" min="-180" max="180">
+            </div>
+            
+            <div>
+                right leg
+                <input id="rightLeg" name="rightLeg" class="slider" type="range" min="-180" max="180">
+                foot
+                <input id="rightLeg-rightFoot" name="rightLeg-rightFoot" class="slider" type="range" min="-180" max="180">
+            </div>
+            
+            <div>
+                test id<input type="text" id="test-id" name="test-id" readonly="">
+                time<input type="text" id="test-time" name="test-time" readonly="">
+            </div>
+            
+            <div><input type="submit" value="send" name="send"></div>
+        </form>
+
+        <div>
+            previous test id<input type="text" id="pre-test-id" name="pre-test-id" readonly="">
+            time<input type="text" id="pre-test-time" name="pre-test-time" readonly="">
+        </div>
+        -->
+
+        <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+        <script type="text/javascript" src="chilitags-js/chilitags.js"></script>
+        <script type="text/javascript" src="gl-matrix/gl-matrix-min.js"></script>
+        <script type="text/javascript" src="doll.js"></script>
+        <script type="text/javascript" src="pose.js"></script>
+    </body>
+</html>
