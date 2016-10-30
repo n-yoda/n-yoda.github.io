@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>AlphaTrick</title>
+</head>
+<body>
+<div>
+  <div>when bg is black: <input type="file" id="black"/></div>
+  <div>when bg is white: <input type="file" id="white"/></div>
+  <div><input type="button" id="compose" value="compose"/></div>
+  <div>background: <input type="range" id="bg" min="0" max="255" value="255"></div>
+  <div>result: </div>
+</div>
+<div id="canvas-div">
+  <canvas id="canvas" width="0" height="0"></canvas>
+</div>
+<div>
+  log:
+  <textarea id="log" style="display:block; width:100%; height:20em"></textarea>
+</div>
+<pre>
+algorithm:
+  for each (uv: vec2):
+    img_result[uv] = argmin_result {
+      diff(trans_b(img_black[uv]), alpha_blend(black, result)) +
+      diff(trans_w(img_white[uv]), alpha_blend(white, result))
+    }
+  where
+    trans_b(color: vec4) := color * 0.5
+    trans_w(color: vec4) := color * 0.5 + vec4(0.5)
+</pre>
+<script type="x-shader/x-vertex" id="vert">
+attribute vec2 pos;
+varying vec2 uv;
+void main(void) {
+  gl_Position = vec4(pos.x * 2.0 - 1.0, 1.0 - pos.y * 2.0, 0, 1);
+  uv = vec2(pos.x, pos.y);
+}
+</script>
+
+<script type="x-shader/x-fragment" id="frag">
+precision highp float;
+varying vec2 uv;
+uniform sampler2D black;
+uniform sampler2D white;
+
+float error(float b, float w, float a, float c) {
+  float diffB = a * c - b;
+  float diffW = ((1.0 - a) + a * c) - w;
+  return diffB * diffB + diffW * diffW;
+}
+
+vec2 bestError(float b, float w, float a) {
+  vec2 result = vec2(0.0, error(b, w, a, 0.0));
+  vec2 one = vec2(1.0, error(b, w, a, 1.0));
+  if (one.y < result.y) result = one;
+  float minPoint = (b + w + a - 1.0) / (2.0 * a);
+  if (0.0 <= minPoint && minPoint <= 1.0) {
+    vec2 min = vec2(minPoint, error(b, w, a, minPoint));
+    if (min.y < result.y) result = min;
+  }
+  return result;
+}
+
+vec4 compose(vec3 black, vec3 white) {
+  vec4 result = vec4(0.0, 0.0, 0.0, 0.0);
+  float error =
+    error(black.r, white.r, 0.0, 0.0) +
+    error(black.g, white.g, 0.0, 0.0) +
+    error(black.b, white.b, 0.0, 0.0);
+  for (int i = 1; i <= 255; i++) {
+    float alpha = float(i) / 255.0;
+    vec2 r = bestError(black.r, white.r, alpha);
+    vec2 g = bestError(black.g, white.g, alpha);
+    vec2 b = bestError(black.b, white.b, alpha);
+    float e = r.y + g.y + b.y;
+    if (e <= error) {
+      error = e;
+      result = vec4(r.x, g.x, b.x, alpha);
+    }
+  }
+  return result;
+}
+
+void main(void) {
+  vec4 b = texture2D(black, uv) * 0.5;
+  vec4 w = texture2D(white, uv) * 0.5 + 0.5;
+  gl_FragColor = compose(b.rgb, w.rgb);
+}
+</script>
+
+<script>
+var canvas = document.getElementById('canvas');
+var logArea = document.getElementById('log');
+var black = document.getElementById('black');
+var white = document.getElementById('white');
+var compose = document.getElementById('compose');
+
+function log() {
+  console.log.apply(console, arguments);
+  var s = '';
+  for (var i = 0; i < arguments.length; i++) {
+    if (i > 0) s += ' ';
+    s += arguments[i];
+  }
+  logArea.textContent = s + '\n' + logArea.textContent;
+}
+
+log('Promise support:', window.Promise)
+log('WebGL support:', window.WebGLRenderingContext)
+log('URL support:', window.URL)
+
+var gl = canvas.getContext('webgl');
+
+var vert = gl.createShader(gl.VERTEX_SHADER);
+gl.shaderSource(vert, document.getElementById("vert").textContent);
+gl.compileShader(vert);
+if (!gl.getShaderParameter(vert, gl.COMPILE_STATUS)) {
+  log(gl.getShaderInfoLog(vert))
+}
+
+var frag = gl.createShader(gl.FRAGMENT_SHADER);
+gl.shaderSource(frag, document.getElementById("frag").textContent);
+gl.compileShader(frag);
+if (!gl.getShaderParameter(frag, gl.COMPILE_STATUS)) {
+  log(gl.getShaderInfoLog(frag))
+}
+
+var prog = gl.createProgram();
+gl.attachShader(prog, vert);
+gl.attachShader(prog, frag);
+gl.linkProgram(prog);
+gl.validateProgram(prog);
+if (gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+  log(gl.getProgramInfoLog(prog));
+}
+gl.useProgram(prog);
+
+var blackTex = gl.createTexture();
+gl.activeTexture(gl.TEXTURE0);
+gl.bindTexture(gl.TEXTURE_2D, blackTex);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+gl.uniform1i(gl.getUniformLocation(prog, 'black'), 0);
+
+var whiteTex = gl.createTexture();
+gl.activeTexture(gl.TEXTURE1);
+gl.bindTexture(gl.TEXTURE_2D, whiteTex);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+gl.uniform1i(gl.getUniformLocation(prog, 'white'), 1);
+
+var buffer = gl.createBuffer();
+var verts = Float32Array.from([
+  0, 0, 0, 1, 1, 1,
+  0, 0, 1, 1, 1, 0,
+]);
+
+gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+gl.bufferData(gl.ARRAY_BUFFER, verts.buffer, gl.STATIC_DRAW);
+var pos = gl.getAttribLocation(prog, "pos");
+gl.enableVertexAttribArray(pos);
+gl.vertexAttribPointer(pos, 2, gl.FLOAT, gl.FALSE, 0 /*tight*/, 0);
+
+function imagePromise(url) {
+  return new Promise(function(resolve, reject) {
+    var img  = new Image();
+    img.src = url;
+    img.addEventListener('load', function() { resolve(this) });
+    img.addEventListener('error', function() { reject(this) });
+  });
+}
+
+compose.addEventListener('click', function() {
+  if (black.files.length < 1) { log('black is empty'); return; }
+  if (white.files.length < 1) { log('white is empty'); return; }
+  compose.disabled = true;
+  var bUrl = URL.createObjectURL(black.files[0]);
+  var wUrl = URL.createObjectURL(white.files[0]);
+  log('compose clicked');
+  Promise.all([imagePromise(bUrl), imagePromise(wUrl)]).then(function(imgs){
+    var blackImg = imgs[0];
+    var whiteImg = imgs[1];
+    log('black img size (=canvas size)', blackImg.width, blackImg.height);
+    log('white img size', whiteImg.width, whiteImg.height);
+    gl.bindTexture(gl.TEXTURE_2D, blackTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, blackImg);
+    gl.bindTexture(gl.TEXTURE_2D, whiteTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, whiteImg);
+    canvas.width = blackImg.width;
+    canvas.height = blackImg.height;
+    gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+    gl.clearColor(0.0, 0.0, 0.0, 0.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    gl.finish();
+    URL.revokeObjectURL(bUrl);
+    URL.revokeObjectURL(wUrl);
+    compose.disabled = false;
+    log('done');
+  }).catch(function() {
+    compose.disabled = false;
+  });
+});
+
+document.getElementById('bg').addEventListener('change', function() {
+  // wanna use `template literal`
+  var v = this.value;
+  var bg = 'RGB(' + v + ', ' + v + ', ' + v + ')';
+  document.getElementById('canvas-div').style.backgroundColor = bg;
+});
+</script>
+
+</body>
+</html>
