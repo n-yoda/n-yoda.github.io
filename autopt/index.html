@@ -9,18 +9,32 @@
   <div>
     <canvas id="src-canvas" width="128" height="128"></canvas>
   </div>
+
+  <div>best: <span id="best-error"></span></div>
   <div>
-    <canvas id="dst-canvas" width="128" height="128"></canvas>
+    <canvas id="best-canvas" width="128" height="128"></canvas>
   </div>
-  <div id="exp-label">逆ポーランド記法：</div>
-  <div id="exp"></div>
+  <div id="best-ops"></div>
+
+  <div>test: <span id="test-error"></span></div>
+  <div>
+    <canvas id="test-canvas" width="128" height="128"></canvas>
+  </div>
+  <div id="test-ops"></div>
 <script>
 const srcCanvas = document.getElementById('src-canvas');
-const dstCanvas = document.getElementById('dst-canvas');
+const testCanvas = document.getElementById('test-canvas');
+const bestCanvas = document.getElementById('best-canvas');
 const srcCtx =  srcCanvas.getContext('2d');
-const dstCtx =  dstCanvas.getContext('2d');
+const testCtx =  testCanvas.getContext('2d');
+const bestCtx =  bestCanvas.getContext('2d');
+const width = testCanvas.width;
+const height = testCanvas.height;
 const src = document.getElementById('src');
-const exp = document.getElementById('exp');
+const bestOpsElem = document.getElementById('best-ops');
+const testOpsElem = document.getElementById('test-ops');
+const bestErrorElem = document.getElementById('best-error');
+const testErrorElem = document.getElementById('test-error');
 const opsDef = {
   'x': x => x.push(x.x),
   'y': x => x.push(x.y),
@@ -44,10 +58,10 @@ for (let i = 0; i <= numMax; i++) {
 }
 const ops = [];
 for (let opName in opsDef) {
-  op = opsDef[opName];
+  const op = opsDef[opName];
   op.opName = opName;
   let count = 0;
-  op({push: x => count++, pop: () => count--, x: 0, y: 0});
+  op({push: () => count++, pop: () => count--, x: 0, y: 0});
   op.opArity = count;
   ops.push(op);
   console.log(op.opName + ':' + op.opArity);
@@ -64,8 +78,8 @@ function randomOps() {
   result.opsStr = '';
   let stack = 0;
   while (result.length < len) {
-    let op = randomOp();
-    next = stack + op.opArity;
+    const op = randomOp();
+    const next = stack + op.opArity;
     if (0 < next && next <= len - result.length) {
       result.push(op);
       result.opsStr += ' ' + op.opName;
@@ -74,7 +88,6 @@ function randomOps() {
   }
   return result;
 }
-
 function imagePromise(url) {
   return new Promise((resolve, reject) => {
     const img  = new Image();
@@ -84,35 +97,63 @@ function imagePromise(url) {
   });
 }
 
-let imageData = dstCtx.createImageData(dstCanvas.width, dstCanvas.height);
-src.addEventListener('change', function() {
+let srcData = null;
+let testData = testCtx.createImageData(width, height);
+let bestError = Infinity;
+function update() {
+  let func = randomOps();
+  let error = 0;
+  for (let y = 0; y < height; ++y) {
+    for (let x = 0; x < width; ++x) {
+      let stack = [];
+      stack.x = (x + 0.5) / width;
+      stack.y = (y + 0.5) / height;
+      func.forEach(op => op(stack));
+      const i = (y * width + x) * 4;
+      const value = stack[0] * 255;
+      testData.data[i + 0] = value;
+      testData.data[i + 1] = value;
+      testData.data[i + 2] = value;
+      testData.data[i + 3] = 255;
+      error += Math.abs(testData.data[i] - srcData.data[i]);
+    }
+  }
+  testCtx.putImageData(testData, 0, 0, 0, 0, width, height);
+  testOpsElem.textContent = func.opsStr;
+  testErrorElem.textContent = error;
+  if (error < bestError) {
+    bestCtx.putImageData(testData, 0, 0, 0, 0, width, height);
+    bestOpsElem.textContent = func.opsStr;
+    bestErrorElem.textContent = error;
+    bestError = error;
+  }
+}
+src.addEventListener('change', () => {
   if (src.files.length < 1) {
     console.log('src is empty');
     return;
   }
   const url = URL.createObjectURL(src.files[0]);
   imagePromise(url).then(img => {
-    srcCtx.drawImage(img, 0, 0, srcCanvas.width, srcCanvas.height);
+    srcCtx.drawImage(img, 0, 0, width, height);
+    srcData = srcCtx.getImageData(0, 0, width, height);
     URL.revokeObjectURL(url);
-    setInterval(() => {
-      let func = randomOps();
-      exp.textContent = func.opsStr;
-      for (let y = 0; y < dstCanvas.height; ++y) {
-        for (let x = 0; x < dstCanvas.width; ++x) {
-          let stack = [];
-          stack.x = (x + 0.5) / dstCanvas.width;
-          stack.y = (y + 0.5) / dstCanvas.height;
-          func.forEach(op => op(stack));
-          let i = (y * dstCanvas.width + x) * 4;
-          value = stack[0] * 255;
-          imageData.data[i + 0] = value;
-          imageData.data[i + 1] = value;
-          imageData.data[i + 2] = value;
-          imageData.data[i + 3] = 255;
-        }
+    for (let y = 0; y < height; ++y) {
+      for (let x = 0; x < width; ++x) {
+        const i = (y * width + x) * 4;
+        let value = (
+          srcData.data[i]
+          + srcData.data[i + 1]
+          + srcData.data[i + 2]) / 3;
+        srcData.data[i + 0] = value;
+        srcData.data[i + 1] = value;
+        srcData.data[i + 2] = value;
+        srcData.data[i + 3] = 255;
       }
-      dstCtx.putImageData(imageData, 0, 0, 0, 0, dstCanvas.width, dstCanvas.height);
-    }, 0);
+    }
+    srcCtx.putImageData(srcData, 0, 0, 0, 0, width, height);
+    bestError = Infinity;
+    setInterval(update, 0);
   });
 });
 </script>
